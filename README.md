@@ -28,3 +28,18 @@ Install the required Python packages using pip:
 
 ```bash
 pip install pillow
+```
+
+## Running the Tool
+Run the tool using Python:
+
+```bash
+python autoalign.py
+```
+
+## Contributions
+Contributions are welcome! Please submit a pull request or open an issue to discuss potential changes.
+
+## License
+This project is licensed under the MIT License.
+```
