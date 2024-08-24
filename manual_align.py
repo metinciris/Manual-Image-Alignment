@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog
-from PIL import Image, ImageTk, ImageOps, ImageFile, ImageDraw
+from PIL import Image, ImageTk, ImageOps, ImageDraw, ImageEnhance
 import winsound
 
 # Pillow'un decompression bomb limitini yükseltin
@@ -18,10 +18,6 @@ class ImageAligner:
         resize_dimension = 800  # Resimleri 800x800 boyutuna küçült
         self.image1 = Image.open(image1_path).resize((resize_dimension, resize_dimension), Image.Resampling.LANCZOS)
         self.image2 = Image.open(image2_path).resize((resize_dimension, resize_dimension), Image.Resampling.LANCZOS)
-
-        # Resimleri çember içine yerleştir ve merkez nokta ekle
-        self.image1 = self.crop_to_circle(self.image1)
-        self.image2 = self.crop_to_circle(self.image2)
 
         # Üstteki resmin şeffaflığı ve koyuluğunu ayarla
         self.image2 = ImageOps.colorize(self.image2.convert("L"), black="black", white="white")
@@ -51,7 +47,6 @@ class ImageAligner:
         self.offset_x = 0
         self.offset_y = 0
         self.transparency = 150
-        self.rotation_center = (resize_dimension // 2, resize_dimension // 2)
 
         # Fare kontrolleri için başlangıç pozisyonları
         self.start_x = 0
@@ -64,21 +59,6 @@ class ImageAligner:
 
         # Ayar butonları
         self.create_controls(controls_frame)
-
-    def crop_to_circle(self, image):
-        """Resmi bir çember içine kırpar ve merkez nokta ekler."""
-        mask = Image.new("L", image.size, 0)
-        draw = ImageDraw.Draw(mask)
-        draw.ellipse((0, 0) + image.size, fill=255)
-        result = Image.new("RGBA", image.size)
-        result.paste(image, mask=mask)
-        
-        # Merkezde bir nokta ekleyin
-        draw = ImageDraw.Draw(result)
-        center = (image.size[0] // 2, image.size[1] // 2)
-        draw.ellipse((center[0]-5, center[1]-5, center[0]+5, center[1]+5), fill="red")
-        
-        return result
 
     def create_controls(self, parent_frame):
         # Döndürme kontrolü
@@ -103,21 +83,17 @@ class ImageAligner:
         self.fine_tune_button = tk.Button(parent_frame, text="Ince Ayar", command=self.toggle_fine_tune)
         self.fine_tune_button.grid(row=3, column=0, columnspan=2)
 
-        # Merkez Hizalama butonu
-        self.align_center_button = tk.Button(parent_frame, text="Merkez hizalandı ise tıkla", command=self.set_new_rotation_center)
-        self.align_center_button.grid(row=4, column=0, columnspan=2)
-
         # Kaydetme butonu
         save_button = tk.Button(parent_frame, text="Kaydet", command=self.save_settings)
-        save_button.grid(row=5, column=0, columnspan=2)
+        save_button.grid(row=4, column=0, columnspan=2)
 
         # Çıkış butonu
         exit_button = tk.Button(parent_frame, text="Çıkış", command=self.master.quit)
-        exit_button.grid(row=6, column=0, columnspan=2)
+        exit_button.grid(row=5, column=0, columnspan=2)
 
         # Kontrol butonlarının görevlerini gösteren bir etiket ekleyin
-        instructions_label = tk.Label(parent_frame, text="Kontroller:\n- Döndürme: Kaydırıcı / + / - \n- Şeffaflık: Kaydırıcı\n- Ince Ayar: Buton\n- Zoom: Fare Tekerleği\n- Taşıma: Fare Sürükle\n- Merkez hizalama: Buton\n- Çıkış: Çıkış Butonu")
-        instructions_label.grid(row=7, column=0, columnspan=2, sticky='w')
+        instructions_label = tk.Label(parent_frame, text="Kontroller:\n- Döndürme: Kaydırıcı / + / - \n- Şeffaflık: Kaydırıcı\n- Ince Ayar: Buton\n- Zoom: Fare Tekerleği\n- Taşıma: Fare Sürükle\n- Çıkış: Çıkış Butonu")
+        instructions_label.grid(row=6, column=0, columnspan=2, sticky='w')
 
     def start_move(self, event):
         self.start_x = event.x
@@ -132,8 +108,7 @@ class ImageAligner:
         self.update_image()
 
     def update_rotation(self, value):
-        rotation_step = 0.05 if self.fine_tune_mode else 0.5
-        self.angle = float(value) * rotation_step
+        self.angle = float(value)
         self.update_image()
 
     def adjust_rotation(self, step):
@@ -153,17 +128,13 @@ class ImageAligner:
         self.update_image()
 
     def update_image(self):
-        rotated_image = self.image2.rotate(self.angle, resample=Image.BICUBIC, center=self.rotation_center)
+        rotated_image = self.image2.rotate(self.angle, resample=Image.BICUBIC)
         scaled_image = rotated_image.resize((int(self.image2.width * self.zoom_scale), int(self.image2.height * self.zoom_scale)), Image.Resampling.LANCZOS)
         scaled_image.putalpha(self.transparency)
         self.image2_tk = ImageTk.PhotoImage(scaled_image)
         self.canvas.coords(self.image2_id, self.offset_x, self.offset_y)
         self.canvas.itemconfig(self.image2_id, image=self.image2_tk)
-
-    def set_new_rotation_center(self):
-        self.rotation_center = (self.start_x, self.start_y)
-        self.align_center_button.config(text="Yeni merkez hizalandı")
-        print(f"Yeni döndürme merkezi: {self.rotation_center}")
+        print(f"Döndürme açısı: {self.angle}, Offset X: {self.offset_x}, Offset Y: {self.offset_y}, Zoom: {self.zoom_scale}")
 
     def toggle_fine_tune(self):
         self.fine_tune_mode = not self.fine_tune_mode
@@ -180,7 +151,6 @@ class ImageAligner:
                 file.write(f"Offset Y: {self.offset_y}\n")
                 file.write(f"Transparency: {self.transparency}\n")
                 file.write(f"Zoom Scale: {self.zoom_scale}\n")
-                file.write(f"Rotation Center: {self.rotation_center}\n")
             print(f"Ayarlar kaydedildi: {save_path}")
             # Kaydedildikten sonra bir ses çalın
             winsound.PlaySound("SystemExit", winsound.SND_ALIAS)
